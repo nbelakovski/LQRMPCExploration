@@ -35,6 +35,7 @@ f_nonlinear_no_control = lambda t, x: [x[1], -g_mps2/r_m * np.cos(x[0])]
 A = lambda theta: np.array([[0, 1], [g_mps2/r_m * np.sin(theta), 0]])
 B = np.array([[0], [GEAR_RATIO/I_kgm2]])
 
+# Check the controllability matrix and assert that the linearized system is controllable
 C = ct.ctrb(A(np.pi/2), B)
 assert np.linalg.matrix_rank(C) == 2
 
