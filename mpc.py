@@ -74,7 +74,7 @@ axs[0].grid();
 axs[0].legend();
 # plt.show();
 axs[1].plot(time_steps, control)
-axs[1].set_title("Kraken motor control effort required (gear ratio of 60)")
+axs[1].set_title("Kraken motor control effort required (gear ratio 60)")
 axs[1].set_xlabel('Time (s)')
 axs[1].set_ylabel('Control (Nm)');
 axs[1].grid();
