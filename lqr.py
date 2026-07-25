@@ -5,21 +5,9 @@ This is an exploration of how to do LQR based controller design for the pivoting
 
 import numpy as np
 from scipy.integrate import solve_ivp
-from pint import UnitRegistry
 import matplotlib.pyplot as plt
 import control as ct
-
-ureg = UnitRegistry()
-
-# Constants
-m_kg = 3.023
-r_in = 7.640
-r_m = ureg.convert(r_in, ureg.inch, ureg.m)
-g_mps2 = 9.81
-I_kgm2 = m_kg * r_m**2
-GEAR_RATIO = 60
-
-
+from constants import m_kg, r_m, g_mps2, I_kgm2, GEAR_RATIO
 
 
 # The nonlinear dynamics:
@@ -59,20 +47,22 @@ u = lambda x: m_kg*g_mps2*r_m*np.cos(x[0]) - K@(x - x_ref)
 # to obtain the torque with which we will need to control our motor.
 f_nonlinear_control = lambda t, x: [x[1], GEAR_RATIO*u(x)[0] -g_mps2/r_m * np.cos(x[0])]
 
-sol = solve_ivp(f_nonlinear_control, [0, tf:=30], [0, 0], t_eval=np.linspace(0, tf, 1000))
-plt.plot(sol.t, np.degrees(sol.y[0, :]))
-plt.xlabel('Time (s)')
-plt.ylabel('Angle (deg)');
-plt.hlines(np.degrees(x_ref[0]), 0, sol.t[-1], color='k', linestyle='--', label='Target angle')
-plt.grid();
-plt.legend();
-plt.show();
-plt.plot(sol.t, [u(sol.y[:, i])[0] for i in range(len(sol.t))])
-plt.xlabel('Time (s)')
-plt.ylabel('Control effort (Nm)');
-plt.hlines(7, 0, sol.t[-1], color='k', linestyle='--', label='Kraken X60 max torque')
-plt.grid();
-plt.legend();
+sol = solve_ivp(f_nonlinear_control, [0, tf:=1], [0, 0], t_eval=np.linspace(0, tf, 1000))
+
+fig, axs = plt.subplots(2, 1, layout="constrained")
+fig.suptitle('Single robotic arm controlled by LQR')
+axs[0].plot(sol.t, np.degrees(sol.y[0, :]))
+axs[0].set_xlabel('Time (s)')
+axs[0].set_ylabel('Angle (deg)');
+axs[0].hlines(np.degrees(x_ref[0]), 0, sol.t[-1], color='k', linestyle='--', label='Target angle')
+axs[0].grid();
+axs[0].legend();
+axs[1].plot(sol.t, [u(sol.y[:, i])[0] for i in range(len(sol.t))])
+axs[1].set_xlabel('Time (s)')
+axs[1].set_ylabel('Control effort (Nm)');
+axs[1].hlines(7, 0, sol.t[-1], color='k', linestyle='--', label='Kraken X60 max torque')
+axs[1].grid();
+axs[1].legend();
 plt.show();
 
 # TODO: We need to put constraints on u. MPC seems the right approach for this

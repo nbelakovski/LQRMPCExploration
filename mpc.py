@@ -5,7 +5,6 @@ This is an exploration of how to do MPC based controller design for the pivoting
 
 import numpy as np
 from scipy.integrate import RK45
-from pint import UnitRegistry
 import matplotlib.pyplot as plt
 import control as ct
 import control.optimal as opt
@@ -13,19 +12,7 @@ from scipy.optimize import LinearConstraint
 from qpsolvers import solve_qp
 from scipy.linalg import block_diag
 from scipy.signal import cont2discrete
-
-
-ureg = UnitRegistry()
-
-# Constants
-m_kg = 3.023
-r_in = 7.640
-r_m = ureg.convert(r_in, ureg.inch, ureg.m)
-g_mps2 = 9.81
-I_kgm2 = m_kg * r_m**2
-GEAR_RATIO = 60
-
-
+from constants import m_kg, r_m, g_mps2, I_kgm2, GEAR_RATIO, KRAKEN_X60_MAX_TORQUE_Nm
 
 
 # The nonlinear dynamics:
@@ -40,7 +27,6 @@ nl_sys = ct.nlsys(f_nonlinear_control, inputs=1, states=2)
 print(nl_sys)
 
 
-KRAKEN_X60_MAX_TORQUE_Nm = 7
 constr = LinearConstraint(A=np.array([[0, 0, 1]]), lb=-KRAKEN_X60_MAX_TORQUE_Nm, ub=KRAKEN_X60_MAX_TORQUE_Nm)
 
 Q = np.array([[100, 0], [0, 1]])
