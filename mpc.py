@@ -90,7 +90,7 @@ while iterator.status == 'running':
         Ac = A(iterator.y[0])
         Bc = np.array([[0.], [-GEAR_RATIO/I_kgm2]])
         x_bar, u_bar = iterator.y[:2], iterator.y[2]
-        c = np.array(f_nonlinear_control(0, x_bar, [u_bar], ())) - Ac @ x_bar - Bc.ravel()*u_bar
+        c = f_nonlinear_control(0, x_bar, [u_bar], ()) - Ac @ x_bar - Bc@[u_bar]
 
         F, Md, *_ = cont2discrete((Ac, np.hstack([Bc, c.reshape(2,1)]), None, None), dt=dt_s)
         B_discrete, c_d = Md[:, :1], Md[:, 1]
