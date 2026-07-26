@@ -36,13 +36,11 @@ Kg = 7.86
 def u(x):
     angle, angular_rate = x
     control_effort_A = Kg * m_kg*g_mps2*r_m*np.cos(angle) - Kp*(angle - x_ref[0]) - Kd*angular_rate
-    # But this comes out in amps for torque current foc control, so I need to map amps back to torque?
     control_effort_Nm = current_A_to_torque_Nm(control_effort_A)
     return np.clip(control_effort_Nm, -KRAKEN_X60_MAX_TORQUE_Nm, KRAKEN_X60_MAX_TORQUE_Nm)
-# The above u calculates torque required at the pivot, but we have a 60:1 gear ratio, so we need to divide the resultant u by 60
-# to obtain the torque with which we will need to control our motor.
-def f_nonlinear_control(t, x):
-    return [x[1], GEAR_RATIO*u(x) -g_mps2/r_m * np.cos(x[0])]
+# The above u calculates torque required at the pivot, but we have a 60:1 gear ratio, so we need to multiply the result by 60
+# to obtain the torque that acts on our system
+f_nonlinear_control = lambda t, x: [x[1], GEAR_RATIO*u(x) -g_mps2/r_m * np.cos(x[0])]
 
 sol = solve_ivp(f_nonlinear_control, [0, tf:=2], [0, 0], t_eval=np.linspace(0, tf, 1000), max_step = 0.001, rtol=1, atol=1)
 

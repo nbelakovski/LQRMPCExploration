@@ -9,5 +9,9 @@ dependencies = [
     "matplotlib",
     "numpy",
     "pint>=0.25.3",
+    "qpsolvers[open-source-solvers]>=4.13.0",
     "scipy",
 ]
+
+[tool.ruff.lint]
+ignore = ["E731"]

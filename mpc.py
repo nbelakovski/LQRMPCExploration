@@ -6,9 +6,6 @@ This is an exploration of how to do MPC based controller design for the pivoting
 import numpy as np
 from scipy.integrate import RK45
 import matplotlib.pyplot as plt
-import control as ct
-import control.optimal as opt
-from scipy.optimize import LinearConstraint
 from qpsolvers import solve_qp
 from scipy.linalg import block_diag
 from scipy.signal import cont2discrete
@@ -23,31 +20,13 @@ f_nonlinear_control = lambda t, x, u, params: [x[1], -g_mps2*np.cos(x[0])/r_m - 
 A = lambda theta: np.array([[0, 1], [g_mps2/r_m * np.sin(theta), 0]])
 B = np.array([[0], [-GEAR_RATIO/I_kgm2]])
 
-nl_sys = ct.nlsys(f_nonlinear_control, inputs=1, states=2)
-print(nl_sys)
-
-
-constr = LinearConstraint(A=np.array([[0, 0, 1]]), lb=-KRAKEN_X60_MAX_TORQUE_Nm, ub=KRAKEN_X60_MAX_TORQUE_Nm)
 
 Q = np.array([[100, 0], [0, 1]])
 R = 0.001
 x_ref = [np.pi/4, 0]
-cost = lambda x, u: (x - x_ref)@Q@(x - x_ref) + R * u[0]**2
-def cost_slsqp(x):
-    # TODO: This needs to be a sum of the costs at each stage.
-    # x is a vector that looks like x11, x12, u1, x21, x22, u2, ... xn1, xn2
-    # And we have the option of either adding the dynamics as constraints, or incorporating them
-    # into the cost function by utilizing the fact that as difference equations we can just substitue
-    # x1{1,2} with the difference equation depending on x0{1,2} and so forth. Let's try the option with
-    # constraints first, since that feels a bit more natural in terms of how to present the problem
-    # Will SLSQP require the Jacobian of the cost function?
-    return (x[:2] - x_ref)@Q@(x[:2] - x_ref) + R * x[2]**2
-terminal_cost = lambda x, u: (x[0] - x_ref[0])**2
-result = opt.solve_optimal_trajectory(nl_sys, np.linspace(0, 0.5, 5), [0, 0], cost, constr, terminal_cost=terminal_cost)
-print(result)
-
+dynamics = lambda t, x: np.append(f_nonlinear_control(t, x[:2], [x[2]], ()), 0)  # Need to append 0 since we include control as a state variable and we need its derivative to be 0
 # Set rtol/atol to something high so that it respects the max step and basically acts like a fixed step RK45
-iterator = RK45(lambda t, x: np.append(f_nonlinear_control(t, x[:2], [x[2]], ()), 0), t0:=0, [0, 0, 0], tf:=1.5, max_step=0.001, rtol=1, atol=1)
+iterator = RK45(dynamics, t0:=0, [0, 0, 0], tf:=1.5, max_step=0.001, rtol=1, atol=1)
 
 angle = []
 control = []
@@ -97,15 +76,14 @@ while iterator.status == 'running':
         constraint_mtrx = np.vstack((constraint_mtrx, np.block([np.eye(2), np.zeros((2, time_horizon_i*3-1-2))])))
         b = np.concat((b, (iterator.y[:2] - x_ref)))  # Remember the state variables are actually x - xref, not x
         # Create the initial guess
-        guess = [*(iterator.y[:2] - x_ref), -0.1] * (time_horizon_i - 1) + [*(iterator.y[:2] - x_ref)]
+        guess = np.array([*(iterator.y[:2] - x_ref), -0.1] * (time_horizon_i - 1) + [*(iterator.y[:2] - x_ref)])
         # Create the lb/ub
         lb = [-np.inf, -np.inf, -KRAKEN_X60_MAX_TORQUE_Nm] * (time_horizon_i - 1) + [-np.inf, -np.inf]
         lb = np.array(lb)
         ub = [np.inf, np.inf, KRAKEN_X60_MAX_TORQUE_Nm] * (time_horizon_i - 1) + [np.inf, np.inf]
         ub = np.array(ub)
         # Let'r rip
-        print("SOLVING")
-        x = solve_qp(P=P,
+        x = solve_qp(P=np.array(P),
                      q=np.zeros((3*time_horizon_i - 1, 1)),
                      G=None,
                      h=None,
@@ -118,7 +96,8 @@ while iterator.status == 'running':
                      initvals = guess,
                      verbose = True
         )
-        print("Control: ", x[2])
+        if x is None:
+            raise Exception("No solution found")
         iterator.y[2] = x[2]
         last_solve_s = iterator.t
     angle.append(iterator.y[0])
@@ -133,15 +112,15 @@ fig, axs = plt.subplots(2, 1, layout="constrained")
 fig.suptitle("Single robotic arm controlled by MPC")
 axs[0].plot(time_steps, np.degrees(angle))
 axs[0].set_title("Actuator angle over time. 0 is horizontal")
-axs[0].set_ylabel('Angle (deg)');
+axs[0].set_ylabel('Angle (deg)')
 axs[0].hlines(np.degrees(x_ref[0]), 0, time_steps[-1], color='k', linestyle='--', label='Target angle')
-axs[0].grid();
-axs[0].legend();
+axs[0].grid()
+axs[0].legend()
 # plt.show();
 axs[1].plot(time_steps, control)
 axs[1].set_title("Kraken motor control effort required (gear ratio 60)")
 axs[1].set_xlabel('Time (s)')
-axs[1].set_ylabel('Control (Nm)');
-axs[1].grid();
+axs[1].set_ylabel('Control (Nm)')
+axs[1].grid()
 
-plt.show();
+plt.show()
