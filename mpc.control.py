@@ -9,18 +9,17 @@ import matplotlib.pyplot as plt
 import control as ct
 import control.optimal as opt
 from scipy.optimize import LinearConstraint
-from constants import m_kg, r_m, g_mps2, GEAR_RATIO, KRAKEN_X60_MAX_TORQUE_Nm
+from constants import m_kg, r_m, g_mps2, GEAR_RATIO, KRAKEN_X60_MAX_TORQUE_FOC_Nm
 
 
 
 # The nonlinear dynamics:
-f_nonlinear_no_control = lambda t, x: [x[1], -g_mps2/r_m * np.cos(x[0])]
 f_nonlinear_control = lambda t, x, u, params: [x[1], -g_mps2*np.cos(x[0])/r_m - (u[0]*GEAR_RATIO)/(m_kg*r_m**2)]
 
 nl_sys = ct.nlsys(f_nonlinear_control, inputs=1, states=2)
 print(nl_sys)
 
-constr = LinearConstraint(A=np.array([[0, 0, 1]]), lb=-KRAKEN_X60_MAX_TORQUE_Nm, ub=KRAKEN_X60_MAX_TORQUE_Nm)
+constr = LinearConstraint(A=np.array([[0, 0, 1]]), lb=-KRAKEN_X60_MAX_TORQUE_FOC_Nm, ub=KRAKEN_X60_MAX_TORQUE_FOC_Nm)
 
 Q = np.array([[100, 0], [0, 1]])
 R = 0.001

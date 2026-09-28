@@ -1,0 +1,108 @@
+from constants import m_kg, g_mps2, r_m, GEAR_RATIO
+import numpy as np
+
+'''
+The dynamics are derived from the equation T=I * w_dot (https://en.wikipedia.org/wiki/Euler%27s_equations_(rigid_body_dynamics))
+where
+
+T = Torque applied to the system by both external
+force and our control
+I = Moment of inertia of the arm (modeled as a point mass, so mr^2)
+and
+w_dot = omega_dot is the angular acceleration
+
+The system is modeled with ϴ being the angle between the arm and the horizontal position,
+like so:
+
+    \
+  ϴ  \
+______\
+
+The torque applied to the system by external forces includes gravity and friction
+
+The gravity term is simply r X F (r cross F) where F=mg, so r X F = rmg cos(theta).
+Typically a cross product uses the sin of the angle between the vectors, but in this
+case theta is 90-(the angle between r and F), hence the usage of cos.
+
+There's three types of friction:
+1) Inefficiencies in gears and chains. We'll assume an efficiency of 98% for each stage.
+2) Sliding friction from bearings. This should be low since that's what bearings are for.
+3) Viscous friction from rolling bearings. This should also be fairly low.
+
+For the moment of inertia, we can model the arm as a point mass which gives m*r^2 for
+the moment of interia, and the rotor inside the motor has an inertia as well. We can
+estimate that from the dimension and weight of the motor.
+
+
+'''
+
+# There are 3 stages between the motor and the arm shaft, I'm assuming the gears and
+# chain are 98% efficient at transferring the load.
+eta_s1 = 0.98
+eta_s2 = 0.98
+eta_chain = 0.98
+
+# Bearing friction
+# The bearings will have some friction. I count 6 bearings in the CAD, so I will just
+# assume 0.01 for their total.
+bearing_friction_torque_Nm = 0.01
+
+# There may also be some viscous friction from the grease inside the bearings. I'll
+# estimate this as 0.01 Nm when we're at 2pi rad/s. This could be refined.
+viscous_friction_Nms = 0.01/(2*np.pi)
+
+# Moments of intertia (MoI)
+# I'm estimating the arm's MoI by taking its mass from CAD as well as the distance from
+# its center of mass to the pivot point, and then I treat it like a point mass at that
+# distance.
+I_arm_kgm2 = m_kg * r_m**2
+
+# In addition to the arm inertia I'll estimate the rotor inertia because I think it
+# might be significant. I'm not including the MoIs of the various gears and sprockets
+# and the chain. This is an area where the model could be improved.
+
+# Estimating rotor inertia from physical parameters
+# Source: https://docs.wcproducts.com/welcome/electronics/kraken-x60/kraken-x60-motor/overview-and-features/physical-specifications
+radius_motor_m = 0.06 - .005  # Assume motor wall is about 5mm thick
+m_motor_kg = 0.54 * 0.9  # Assume the rotor is 90% of the total mass
+I_motor_kgm2 = 1/2 * m_motor_kg * radius_motor_m**2
+# Lastly, the above needs to be reflected to the shaft with the arm so that we can write
+# things in terms of the angle and rotational speed of the arm shaft. Reflected in this
+# case means multiplying by the final gear ratio squared.
+
+# Let's also add some model error in here, so that when we test the controllers we're
+# testing against an imperfect model
+model_error = 1.1  # 10%
+
+def nonlinear_dynamics(t, x, u_Nm=0, friction=True):
+    xdot = np.zeros(x.shape)
+    efficiency = eta_s1 * eta_s2 * eta_chain if friction else 1
+    angle_rad, angular_rate_radps = x[0], x[1]
+    dynamic_friction = bearing_friction_torque_Nm * np.tanh(1e3*angular_rate_radps) if friction else 0
+    viscous_friction = viscous_friction_Nms * angular_rate_radps if friction else 0
+    w_dot = (I_arm_kgm2 * model_error + I_motor_kgm2 * model_error * efficiency * GEAR_RATIO**2)**-1 * (
+        u_Nm * efficiency * GEAR_RATIO  # Torque from motor
+        - r_m * m_kg * model_error * g_mps2 * np.cos(angle_rad)  # Torque from gravity
+        - dynamic_friction - viscous_friction
+    )
+
+    xdot[0] = angular_rate_radps
+    xdot[1] = w_dot
+    return xdot
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+    from scipy.integrate import solve_ivp
+    t_eval = np.linspace(0, (tf:=50), 10000)
+    friction = solve_ivp(nonlinear_dynamics, [0, tf], [np.radians(-45), 0],
+                         t_eval=t_eval, args=(0, True), atol=1e-8, rtol=1e-8)
+    frictionless = solve_ivp(nonlinear_dynamics, [0, tf], [np.radians(-45), 0],
+                             t_eval=t_eval, args=(0, False), atol=1e-8, rtol=1e-8)
+    plt.plot(t_eval, np.degrees(friction.y[0, :]), 'b', label='Friction')
+    plt.plot(t_eval, np.degrees(frictionless.y[0, :]), 'g', label='Frictionless')
+    plt.grid()
+    plt.legend()
+    plt.xlabel('Time (s)')
+    plt.ylabel('Angle (degrees)')
+    plt.show()

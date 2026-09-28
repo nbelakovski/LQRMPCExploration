@@ -16,4 +16,4 @@ g_mps2 = 9.81
 I_kgm2 = m_kg * r_m**2
 GEAR_RATIO = 60
 
-KRAKEN_X60_MAX_TORQUE_Nm = 9.37
+KRAKEN_X60_MAX_TORQUE_FOC_Nm = 9.37

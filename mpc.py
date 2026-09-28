@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from qpsolvers import solve_qp
 from scipy.linalg import block_diag
 from scipy.signal import cont2discrete
-from constants import m_kg, r_m, g_mps2, I_kgm2, GEAR_RATIO, KRAKEN_X60_MAX_TORQUE_Nm
+from constants import m_kg, r_m, g_mps2, I_kgm2, GEAR_RATIO, KRAKEN_X60_MAX_TORQUE_FOC_Nm
 
 
 # The nonlinear dynamics:
@@ -26,7 +26,7 @@ R = 0.001
 x_ref = [np.pi/4, 0]
 dynamics = lambda t, x: np.append(f_nonlinear_control(t, x[:2], [x[2]], ()), 0)  # Need to append 0 since we include control as a state variable and we need its derivative to be 0
 # Set rtol/atol to something high so that it respects the max step and basically acts like a fixed step RK45
-iterator = RK45(dynamics, t0:=0, [0, 0, 0], tf:=1.5, max_step=0.001, rtol=1, atol=1)
+iterator = RK45(dynamics, t0=0, y0=[0, 0, 0], t_bound=1.5, max_step=0.001, rtol=1, atol=1)
 
 angle = []
 control = []
@@ -38,19 +38,6 @@ B_discrete =np.array([[dt_s**2/2], [B[1,0]*dt_s]])
 while iterator.status == 'running':
     msg = iterator.step()
     if iterator.t - last_solve_s > 0.01:
-        ## solve and update u with python- control library
-        # result = opt.solve_optimal_trajectory(nl_sys, np.linspace(0, 0.5, 5), iterator.y[:2], cost, constr, terminal_cost=terminal_cost, initial_guess=iterator.y[2], print_summary=False)
-        # iterator.y[2] = result.inputs[0][0]
-        ## New task: Replace opt.solve_optimal_trajectory with a QP solvable by a QP solver
-        ## But why would I linearize and use a QP solver, if I can keep it nonlinear and use SLSQP? I genuinely don't know
-        ## I mean, I don't know about the compute capabilities of the rio or, more importantly, the pi, i.e. if we can run SLSQP on it
-        ## But maybe I start there, and if we can't get the necessary loop times, fall back to QP?
-        ## And then there's the question of getting SLSQP in Java? There's an old slsqp4j package, might work?
-        ## 7/25/26 I'm going to try to make it a QP problem just to get practice with QP
-        # 1. Linearize the matrices
-        # 2. Convert them to discrete time with the appropriate dt
-        F = A(iterator.y[0])*dt_s + np.eye(2)
-        F, B_discrete, _, _, _ = cont2discrete((A(iterator.y[0]), B, None, None), dt=0.1)
 
         Ac = A(iterator.y[0])
         Bc = np.array([[0.], [-GEAR_RATIO/I_kgm2]])
@@ -78,9 +65,9 @@ while iterator.status == 'running':
         # Create the initial guess
         guess = np.array([*(iterator.y[:2] - x_ref), -0.1] * (time_horizon_i - 1) + [*(iterator.y[:2] - x_ref)])
         # Create the lb/ub
-        lb = [-np.inf, -np.inf, -KRAKEN_X60_MAX_TORQUE_Nm] * (time_horizon_i - 1) + [-np.inf, -np.inf]
+        lb = [-np.inf, -np.inf, -KRAKEN_X60_MAX_TORQUE_FOC_Nm] * (time_horizon_i - 1) + [-np.inf, -np.inf]
         lb = np.array(lb)
-        ub = [np.inf, np.inf, KRAKEN_X60_MAX_TORQUE_Nm] * (time_horizon_i - 1) + [np.inf, np.inf]
+        ub = [np.inf, np.inf, KRAKEN_X60_MAX_TORQUE_FOC_Nm] * (time_horizon_i - 1) + [np.inf, np.inf]
         ub = np.array(ub)
         # Let'r rip
         x = solve_qp(P=np.array(P),
@@ -91,7 +78,6 @@ while iterator.status == 'running':
                      b = b,
                      lb = lb,
                      ub = ub,
-                     # ['clarabel', 'cvxopt', 'daqp', 'ecos', 'highs', 'jaxopt_osqp', 'osqp', 'piqp', 'proxqp', 'qpalm', 'qpax', 'qtqp', 'quadprog', 'pyqpmad', 'scs', 'sip']
                      solver = 'qpalm',
                      initvals = guess,
                      verbose = True
