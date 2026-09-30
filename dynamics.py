@@ -1,4 +1,13 @@
-from constants import m_kg, g_mps2, r_m, GEAR_RATIO
+from constants import (
+    r_arm_m,
+    m_arm_kg,
+    I_arm_kgm2,
+    efficiency,
+    bearing_friction_torque_Nm,
+    viscous_friction_Nms,
+    g_mps2,
+    GEAR_RATIO
+)
 import numpy as np
 
 '''
@@ -36,26 +45,7 @@ estimate that from the dimension and weight of the motor.
 
 '''
 
-# There are 3 stages between the motor and the arm shaft, I'm assuming the gears and
-# chain are 98% efficient at transferring the load.
-eta_s1 = 0.98
-eta_s2 = 0.98
-eta_chain = 0.98
-
-# Bearing friction
-# The bearings will have some friction. I count 6 bearings in the CAD, so I will just
-# assume 0.01 for their total.
-bearing_friction_torque_Nm = 0.01
-
-# There may also be some viscous friction from the grease inside the bearings. I'll
-# estimate this as 0.01 Nm when we're at 2pi rad/s. This could be refined.
-viscous_friction_Nms = 0.01/(2*np.pi)
-
 # Moments of intertia (MoI)
-# I'm estimating the arm's MoI by taking its mass from CAD as well as the distance from
-# its center of mass to the pivot point, and then I treat it like a point mass at that
-# distance.
-I_arm_kgm2 = m_kg * r_m**2
 
 # In addition to the arm inertia I'll estimate the rotor inertia because I think it
 # might be significant. I'm not including the MoIs of the various gears and sprockets
@@ -76,13 +66,13 @@ model_error = 1.1  # 10%
 
 def nonlinear_dynamics(t, x, u_Nm=0, friction=True):
     xdot = np.zeros(x.shape)
-    efficiency = eta_s1 * eta_s2 * eta_chain if friction else 1
+    efficiency_ = efficiency if friction else 0
     angle_rad, angular_rate_radps = x[0], x[1]
     dynamic_friction = bearing_friction_torque_Nm * np.tanh(1e3*angular_rate_radps) if friction else 0
     viscous_friction = viscous_friction_Nms * angular_rate_radps if friction else 0
-    w_dot = (I_arm_kgm2 * model_error + I_motor_kgm2 * model_error * efficiency * GEAR_RATIO**2)**-1 * (
-        u_Nm * efficiency * GEAR_RATIO  # Torque from motor
-        - r_m * m_kg * model_error * g_mps2 * np.cos(angle_rad)  # Torque from gravity
+    w_dot = (I_arm_kgm2 * model_error + I_motor_kgm2 * model_error * efficiency_ * GEAR_RATIO**2)**-1 * (
+        u_Nm * efficiency_ * GEAR_RATIO  # Torque from motor
+        - r_arm_m * m_arm_kg * model_error * g_mps2 * np.cos(angle_rad)  # Torque from gravity
         - dynamic_friction - viscous_friction
     )
 

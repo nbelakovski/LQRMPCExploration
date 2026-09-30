@@ -7,16 +7,24 @@ import numpy as np
 from scipy.integrate import solve_ivp
 import matplotlib.pyplot as plt
 import control as ct
-from constants import m_kg, r_m, g_mps2, GEAR_RATIO, KRAKEN_X60_MAX_TORQUE_FOC_Nm
-from dynamics import nonlinear_dynamics, viscous_friction_Nms, I_arm_kgm2, I_motor_kgm2, eta_s1, eta_s2, eta_chain
+from constants import (
+    m_arm_kg,
+    r_arm_m,
+    I_arm_kgm2,
+    viscous_friction_Nms,
+    efficiency,
+    g_mps2,
+    GEAR_RATIO,
+    KRAKEN_X60_MAX_TORQUE_FOC_Nm
+)
+from dynamics import nonlinear_dynamics, I_motor_kgm2
 
 # TODO: Explain the A matrix, and clean up some of this code, perhaps some of the things
 # in dynamics.py can be moved to constants.py
 
-efficiency = eta_s1 * eta_s2 * eta_chain
 I_eff_inv = (I_arm_kgm2 + I_motor_kgm2 * efficiency * GEAR_RATIO**2)**-1
 # General formula for linearization. Provide theta as a point to linearize about.
-A = lambda theta: np.array([[0, 1], [I_eff_inv * r_m * m_kg * g_mps2 * np.sin(theta), -I_eff_inv  * viscous_friction_Nms]])
+A = lambda theta: np.array([[0, 1], [I_eff_inv * r_arm_m * m_arm_kg * g_mps2 * np.sin(theta), -I_eff_inv  * viscous_friction_Nms]])
 B = np.array([[0], [I_eff_inv * efficiency * GEAR_RATIO]])
 
 cp = np.pi/2  # control point
@@ -32,13 +40,13 @@ K, S, E = ct.lqr(A(cp), B, Q, R)
 
 print("K:", K)
 print("Eigenvalues:", E)
-print("mgr (Nm):", m_kg*g_mps2*r_m)
+print("mgr (Nm):", m_arm_kg*g_mps2*r_arm_m)
 
 x_ref = [-np.pi/4, 0]
 
 # The controller design incorporates a gravity feedforward component and then the
 # K matrix gains from LQR
-u = lambda x: m_kg*g_mps2*r_m*np.cos(x[0])/(GEAR_RATIO*efficiency) - K@(x - x_ref)
+u = lambda x: m_arm_kg*g_mps2*r_arm_m*np.cos(x[0])/(GEAR_RATIO*efficiency) - K@(x - x_ref)
 
 nonlinear_dynamics_lqrf_control = lambda t, x: nonlinear_dynamics(t, x, u(x)[0])
 
