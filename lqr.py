@@ -25,7 +25,7 @@ C = ct.ctrb(A(cp), B)
 assert np.linalg.matrix_rank(C) == 2
 
 Q = np.array([[100, 0], [0, 1]])
-R = 2
+R = 0.1
 
 K, S, E = ct.lqr(A(cp), B, Q, R)
 
@@ -33,7 +33,7 @@ print("K:", K)
 print("Eigenvalues:", E)
 print("mgr (Nm):", m_arm_kg*g_mps2*r_arm_m)
 
-x_ref = [-np.pi/4, 0]
+x_ref = [np.pi/4, 0]
 
 # The controller design incorporates a gravity feedforward component and then the
 # K matrix gains from LQR
