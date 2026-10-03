@@ -20,7 +20,9 @@ from constants import (
 from dynamics import nonlinear_dynamics, I_motor_kgm2
 
 # TODO: Explain the A matrix, and clean up some of this code, perhaps some of the things
-# in dynamics.py can be moved to constants.py
+# in dynamics.py can be moved to constants.py. Also the A matrix linearization can
+# probably move to dynamics, so that the LQR code can focus on LQR and not have to import
+# things like the efficiency and the friction coefficient.
 
 I_eff_inv = (I_arm_kgm2 + I_motor_kgm2 * efficiency * GEAR_RATIO**2)**-1
 # General formula for linearization. Provide theta as a point to linearize about.
