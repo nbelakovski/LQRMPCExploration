@@ -1,6 +1,9 @@
 '''
 This is an exploration of how to do MPC based controller design for the pivoting arm on FRC team
 516's competition bot.
+
+Math is based on example 2.5 from Model Predictive Control: Theory, Computation, and Design
+by Rawlings, Maybe, and Diehl
 '''
 
 import numpy as np
@@ -9,16 +12,26 @@ import matplotlib.pyplot as plt
 from qpsolvers import solve_qp
 from scipy.linalg import block_diag
 from scipy.signal import cont2discrete
-from constants import m_kg, r_m, g_mps2, I_kgm2, GEAR_RATIO, KRAKEN_X60_MAX_TORQUE_FOC_Nm
-
+from constants import (
+    m_arm_kg,
+    r_arm_m,
+    I_arm_kgm2,
+    viscous_friction_Nms,
+    efficiency,
+    g_mps2,
+    GEAR_RATIO,
+    KRAKEN_X60_MAX_TORQUE_FOC_Nm
+)
+from dynamics import nonlinear_dynamics, I_motor_kgm2
 
 # The nonlinear dynamics:
-f_nonlinear_no_control = lambda t, x: [x[1], -g_mps2/r_m * np.cos(x[0])]
-f_nonlinear_control = lambda t, x, u, params: [x[1], -g_mps2*np.cos(x[0])/r_m - (u[0]*GEAR_RATIO)/(m_kg*r_m**2)]
+f_nonlinear_control = lambda t, x, u, params: nonlinear_dynamics(t, x, u[0])
 
 # General formula for linearization. Provide theta as a point to linearize about.
-A = lambda theta: np.array([[0, 1], [g_mps2/r_m * np.sin(theta), 0]])
-B = np.array([[0], [-GEAR_RATIO/I_kgm2]])
+I_eff_inv = (I_arm_kgm2 + I_motor_kgm2 * efficiency * GEAR_RATIO**2)**-1
+# General formula for linearization. Provide theta as a point to linearize about.
+A = lambda theta: np.array([[0, 1], [I_eff_inv * r_arm_m * m_arm_kg * g_mps2 * np.sin(theta), -I_eff_inv  * viscous_friction_Nms]])
+B = np.array([[0], [I_eff_inv * efficiency * GEAR_RATIO]])
 
 
 Q = np.array([[100, 0], [0, 1]])
@@ -40,7 +53,7 @@ while iterator.status == 'running':
     if iterator.t - last_solve_s > 0.01:
 
         Ac = A(iterator.y[0])
-        Bc = np.array([[0.], [-GEAR_RATIO/I_kgm2]])
+        Bc = np.array([[0], [I_eff_inv * efficiency * GEAR_RATIO]])
         x_bar, u_bar = iterator.y[:2], iterator.y[2]
         c = f_nonlinear_control(0, x_bar, [u_bar], ()) - Ac @ x_bar - Bc@[u_bar]
 
@@ -55,6 +68,9 @@ while iterator.status == 'running':
         for i in range(time_horizon_i - 1):
             left_zeros = np.zeros((2, 3*i))
             right_zeros = np.zeros((2, time_horizon_i*3-1 - 5 - 3*i))  # F, B, -I takes up 5 cols
+            # I believe that canonical way of doing this is to recalculate F at the new
+            # state at the new time horizon. Its affect on accuracy in this sim will be
+            # negligible, but I should do it for the sake of doing it right.
             constraint_mtrx.append([left_zeros, F, B_discrete, -np.eye(2), right_zeros])
         constraint_mtrx = np.block(constraint_mtrx)
         xref_vector = [*x_ref, 0] * (time_horizon_i - 1) + [*x_ref]
@@ -75,12 +91,12 @@ while iterator.status == 'running':
                      G=None,
                      h=None,
                      A=constraint_mtrx,
-                     b = b,
-                     lb = lb,
-                     ub = ub,
-                     solver = 'qpalm',
-                     initvals = guess,
-                     verbose = True
+                     b=b,
+                     lb=lb,
+                     ub=ub,
+                     solver='qpalm',
+                     initvals=guess,
+                     verbose=True
         )
         if x is None:
             raise Exception("No solution found")
@@ -102,11 +118,12 @@ axs[0].set_ylabel('Angle (deg)')
 axs[0].hlines(np.degrees(x_ref[0]), 0, time_steps[-1], color='k', linestyle='--', label='Target angle')
 axs[0].grid()
 axs[0].legend()
-# plt.show();
 axs[1].plot(time_steps, control)
 axs[1].set_title("Kraken motor control effort required (gear ratio 60)")
 axs[1].set_xlabel('Time (s)')
 axs[1].set_ylabel('Control (Nm)')
+axs[1].hlines(KRAKEN_X60_MAX_TORQUE_FOC_Nm, 0, time_steps[-1], color='k', linestyle='--', label='Kraken X60 max torque FOC')
+axs[1].hlines(-KRAKEN_X60_MAX_TORQUE_FOC_Nm, 0, time_steps[-1], color='k', linestyle='--')
 axs[1].grid()
 
 plt.show()
