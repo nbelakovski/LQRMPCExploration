@@ -14,8 +14,7 @@ import numpy as np
 The dynamics are derived from the equation T=I * w_dot (https://en.wikipedia.org/wiki/Euler%27s_equations_(rigid_body_dynamics))
 where
 
-T = Torque applied to the system by both external
-force and our control
+T = Torque applied to the system by both external forces and our control
 I = Moment of inertia of the arm (modeled as a point mass, so mr^2)
 and
 w_dot = omega_dot is the angular acceleration
@@ -23,11 +22,11 @@ w_dot = omega_dot is the angular acceleration
 The system is modeled with ϴ being the angle between the arm and the horizontal position,
 like so:
 
-    \
-  ϴ  \
-______\
+  /  
+ /  ϴ  
+/______
 
-The torque applied to the system by external forces includes gravity and friction
+The torque applied to the system by external forces includes gravity and friction.
 
 The gravity term is simply r X F (r cross F) where F=mg, so r X F = rmg cos(theta).
 Typically a cross product uses the sin of the angle between the vectors, but in this
@@ -47,15 +46,14 @@ estimate that from the dimension and weight of the motor.
 
 # Moments of intertia (MoI)
 
-# In addition to the arm inertia I'll estimate the rotor inertia because I think it
-# might be significant. I'm not including the MoIs of the various gears and sprockets
-# and the chain. This is an area where the model could be improved.
+# I'm not including the MoIs of the various gears and sprockets and the chain. This is
+# an area where the model could be improved.
 
 # Estimating rotor inertia from physical parameters
 # Source: https://docs.wcproducts.com/welcome/electronics/kraken-x60/kraken-x60-motor/overview-and-features/physical-specifications
 radius_motor_m = 0.06 - .005  # Assume motor wall is about 5mm thick
 m_motor_kg = 0.54 * 0.9  # Assume the rotor is 90% of the total mass
-I_motor_kgm2 = 1/2 * m_motor_kg * radius_motor_m**2
+I_motor_kgm2 = 1/2 * m_motor_kg * radius_motor_m**2  # Assume solid cylinder about z axis
 # Lastly, the above needs to be reflected to the shaft with the arm so that we can write
 # things in terms of the angle and rotational speed of the arm shaft. Reflected in this
 # case means multiplying by the final gear ratio squared.
@@ -80,8 +78,21 @@ def nonlinear_dynamics(t, x, u_Nm=0, friction=True):
     xdot[1] = w_dot
     return xdot
 
+# Linearization
+# Both LQR and MPC require a linearization of the dynamics. A is derived by differentiating
+# our nonlinear dynamics wrt the state, and B is derived by differentiating those same
+# dynamics wrt the control.
+I_eff_inv = (I_arm_kgm2 + I_motor_kgm2 * efficiency * GEAR_RATIO**2)**-1
+# A is a 2x2 matrix and I'm trying to use spaces to make it clear which code corresponds
+# to which element of A.
+A = lambda theta: np.array([
+    [0                                                      , 1],
+    [I_eff_inv * r_arm_m * m_arm_kg * g_mps2 * np.sin(theta), -I_eff_inv  * viscous_friction_Nms]])
+B = np.array([[0], [I_eff_inv * efficiency * GEAR_RATIO]])
 
 if __name__ == "__main__":
+    # As a quick sanity check of the dynamics, when the script is run by itself it will
+    # simulate the dynamics without control and with and without friction.
     import matplotlib.pyplot as plt
     from scipy.integrate import solve_ivp
     t_eval = np.linspace(0, (tf:=50), 10000)

@@ -12,26 +12,11 @@ import matplotlib.pyplot as plt
 from qpsolvers import solve_qp
 from scipy.linalg import block_diag
 from scipy.signal import cont2discrete
-from constants import (
-    m_arm_kg,
-    r_arm_m,
-    I_arm_kgm2,
-    viscous_friction_Nms,
-    efficiency,
-    g_mps2,
-    GEAR_RATIO,
-    KRAKEN_X60_MAX_TORQUE_FOC_Nm
-)
-from dynamics import nonlinear_dynamics, I_motor_kgm2
+from constants import KRAKEN_X60_MAX_TORQUE_FOC_Nm
+from dynamics import nonlinear_dynamics, A, B
 
 # The nonlinear dynamics:
 f_nonlinear_control = lambda t, x, u, params: nonlinear_dynamics(t, x, u[0])
-
-# General formula for linearization. Provide theta as a point to linearize about.
-I_eff_inv = (I_arm_kgm2 + I_motor_kgm2 * efficiency * GEAR_RATIO**2)**-1
-# General formula for linearization. Provide theta as a point to linearize about.
-A = lambda theta: np.array([[0, 1], [I_eff_inv * r_arm_m * m_arm_kg * g_mps2 * np.sin(theta), -I_eff_inv  * viscous_friction_Nms]])
-B = np.array([[0], [I_eff_inv * efficiency * GEAR_RATIO]])
 
 
 Q = np.array([[100, 0], [0, 1]])
@@ -53,11 +38,10 @@ while iterator.status == 'running':
     if iterator.t - last_solve_s > 0.01:
 
         Ac = A(iterator.y[0])
-        Bc = np.array([[0], [I_eff_inv * efficiency * GEAR_RATIO]])
         x_bar, u_bar = iterator.y[:2], iterator.y[2]
-        c = f_nonlinear_control(0, x_bar, [u_bar], ()) - Ac @ x_bar - Bc@[u_bar]
+        c = f_nonlinear_control(0, x_bar, [u_bar], ()) - Ac @ x_bar - B@[u_bar]
 
-        F, Md, *_ = cont2discrete((Ac, np.hstack([Bc, c.reshape(2,1)]), None, None), dt=dt_s)
+        F, Md, *_ = cont2discrete((Ac, np.hstack([B, c.reshape(2,1)]), None, None), dt=dt_s)
         B_discrete, c_d = Md[:, :1], Md[:, 1]
 
         # Create the cost matrix
