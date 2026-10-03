@@ -35,10 +35,9 @@ def current_A_to_torque_Nm(current_A, foc=True):
 
 x_ref = [np.pi/4, 0]
 # In this season's code, the Kp, Kd, and Kg values are 300, 75, and 12
-#
 Kp = 300
-Kd = 10
-Kg = 6.924
+Kd = 75
+Kg = 12
 def pidf(x):
     angle_rad, angular_rate_radps = x
     control_effort_A = Kg*np.cos(angle_rad) - Kp*(angle_rad - x_ref[0]) - Kd*angular_rate_radps
