@@ -1,12 +1,12 @@
 '''
-This is an exploration of how to do LQR based controller design for the pivoting arm on FRC team
-516's competition bot.
+This is an exploration of how to do LQR based controller design for the pivoting arm on
+FRC team 516's 2026 competition bot.
 '''
 
 import numpy as np
 from scipy.integrate import solve_ivp
+from scipy.linalg import solve_continuous_are
 import matplotlib.pyplot as plt
-import control as ct
 from constants import (
     m_arm_kg,
     r_arm_m,
@@ -20,14 +20,34 @@ from dynamics import nonlinear_dynamics, A, B
 
 cp = np.pi/2  # control point
 
-# Check the controllability matrix and assert that the linearized system is controllable
-C = ct.ctrb(A(cp), B)
-assert np.linalg.matrix_rank(C) == 2
+# Check the controllability matrix and assert that the linearized system is controllable.
+# For an n-state system that matrix is [B, AB, A^2 B, ... A^(n-1) B], so with two states
+# it is just [B, AB].
+controllability = np.hstack([B, A(cp) @ B])
+assert np.linalg.matrix_rank(controllability) == 2
 
 Q = np.array([[100, 0], [0, 1]])
-R = 0.1
+# R is 1x1 because the arm has a single input, the motor torque. Keeping it a matrix
+# rather than a scalar lets the gain below be written the way the textbooks write it.
+R = np.array([[0.1]])
 
-K, S, E = ct.lqr(A(cp), B, Q, R)
+# LQR finds the gain K that minimizes the infinite-horizon quadratic cost
+#
+#   J = integral from 0 to inf of (x' Q x + u' R u) dt
+#
+# Q prices how much we dislike being away from the setpoint and R prices how much we
+# dislike spending control effort, so their ratio is the only thing that really matters.
+# The minimizer comes out of the algebraic Riccati equation (ARE)
+#
+#   A' S + S A - S B R^-1 B' S + Q = 0
+#
+# which scipy solves for S. The optimal gain is then K = R^-1 B' S. Substituting
+# u = -Kx into xdot = Ax + Bu leaves the closed loop running as xdot = (A - BK)x, so the
+# eigenvalues of A - BK say how quickly the controller hauls the state back to the
+# setpoint. Both are negative here, which is what makes the closed loop stable.
+S = solve_continuous_are(A(cp), B, Q, R)
+K = np.linalg.solve(R, B.T @ S)
+E = np.linalg.eigvals(A(cp) - B @ K)
 
 print("K:", K)
 print("Eigenvalues:", E)
@@ -36,7 +56,7 @@ print("mgr (Nm):", m_arm_kg*g_mps2*r_arm_m)
 x_ref = [np.pi/4, 0]
 
 # The controller design incorporates a gravity feedforward component and then the
-# K matrix gains from LQR
+# K matrix gains from LQR.
 u = lambda x: m_arm_kg*g_mps2*r_arm_m*np.cos(x[0])/(GEAR_RATIO*efficiency) - K@(x - x_ref)
 
 nonlinear_dynamics_lqrf_control = lambda t, x: nonlinear_dynamics(t, x, u(x)[0])
