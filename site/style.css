@@ -1,0 +1,111 @@
+:root {
+  --bg: #0f1216; --panel: #161b22; --line: #262d38;
+  --text: #dde3ea; --dim: #9aa4b2; --accent: #4c8dff; --warn: #e0569a;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg:#fbfcfd; --panel:#fff; --line:#dfe4ea; --text:#1b2027; --dim:#5c6673; }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.65 ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+header, main, footer { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem; }
+header { padding-top: 4rem; padding-bottom: 1rem; }
+h1 { font-size: 2.4rem; line-height: 1.15; margin: 0 0 1rem; letter-spacing: -0.02em; }
+h2 { font-size: 1.35rem; margin: 3.5rem 0 1rem; letter-spacing: -0.01em; }
+.lede { color: var(--dim); font-size: 1.05rem; max-width: 46rem; }
+p { max-width: 46rem; }
+a { color: var(--accent); }
+code { font-family: var(--mono); font-size: 0.9em; }
+
+#status {
+  font-family: var(--mono); font-size: 0.85rem; color: var(--dim);
+  border-left: 2px solid var(--accent); padding-left: 0.75rem; min-height: 1.6em;
+}
+#status.done { border-color: transparent; }
+#status.error { border-color: var(--warn); color: var(--warn); }
+
+.todo {
+  border-left: 2px solid var(--warn); padding: 0.1rem 0 0.1rem 0.75rem;
+  color: var(--dim); font-size: 0.92rem;
+}
+.todo::before { content: "draft note "; color: var(--warn); font-weight: 600; }
+
+pre.code {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 1rem 1.1rem; overflow-x: auto; font-family: var(--mono);
+  font-size: 0.82rem; line-height: 1.55; tab-size: 4;
+}
+pre.code .k { color: #c792ea; }
+pre.code .s { color: #8fd98f; }
+pre.code .c { color: var(--dim); font-style: italic; }
+
+/* ----- labs ----- */
+.lab {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 1.1rem; margin: 1.5rem 0;
+}
+.lab { position: relative; }
+
+/* Shown only once a run has been going for a moment; see the timer in app.js. */
+.overlay {
+  position: absolute; inset: 0; z-index: 3; display: none;
+  align-items: center; justify-content: center; gap: 0.6rem;
+  border-radius: 10px; background: color-mix(in srgb, var(--panel) 78%, transparent);
+  backdrop-filter: blur(2px);
+  font-size: 0.9rem; color: var(--text);
+}
+.lab.running .overlay { display: flex; }
+.overlay i {
+  width: 1.05em; height: 1.05em; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.controls { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; align-items: center; }
+.control { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+.control > span { color: var(--dim); white-space: nowrap; }
+.control input[type=range] { width: 9rem; accent-color: var(--accent); }
+.control output { font-family: var(--mono); min-width: 3.6rem; }
+.control.toggle { gap: 0.35rem; }
+
+button { font: inherit; font-size: 0.85rem; border-radius: 6px; padding: 0.3rem 0.9rem; cursor: pointer; }
+button.ghost { background: transparent; color: var(--dim); border: 1px solid var(--line); }
+button.primary {
+  background: var(--accent); color: #fff; border: 1px solid var(--accent);
+  animation: glow 2.2s ease-in-out infinite;
+}
+button.primary:hover { filter: brightness(1.12); }
+/* The MPC chapter is the one place a reader has to press something for anything to
+   happen, so its button asks to be pressed. */
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+/* Nothing here is load-bearing, so drop it for anyone who would rather not see it. */
+@media (prefers-reduced-motion: reduce) {
+  button.primary { animation: none; }
+  .overlay i { animation: none; border-top-color: var(--accent); }
+}
+
+.panes { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+@media (max-width: 52rem) { .panes { grid-template-columns: 1fr; } }
+.charts { min-width: 0; }
+.stage {
+  height: 400px; border-radius: 8px; overflow: hidden; background: #0b0e12;
+  display: flex; align-items: center; justify-content: center; cursor: grab;
+}
+.stage canvas { display: block; }
+.stage p { color: var(--dim); font-size: 0.85rem; text-align: center; padding: 1rem; }
+
+.readout { font-family: var(--mono); font-size: 0.82rem; color: var(--text); margin: 0.75rem 0 0; }
+.info { font-family: var(--mono); font-size: 0.82rem; color: var(--accent); margin: 0.2rem 0 0; }
+.run-hint { font-size: 0.78rem; color: var(--dim); margin: 0.2rem 0 0; }
+
+footer { padding: 3rem 1.5rem 4rem; color: var(--dim); font-size: 0.85rem; }
+
+.uplot { font-family: inherit !important; }
+.u-title { font-size: 0.8rem !important; color: var(--dim); font-weight: 500; }

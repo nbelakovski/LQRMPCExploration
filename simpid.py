@@ -29,14 +29,7 @@ def current_A_to_torque_Nm(current_A, foc=True):
 
 def make_controller(x_ref, Kp=300, Kd=75, Kg=12, foc=True):
     '''
-    Build a PID controller that drives the arm to x_ref.
-
-    The gains are in the same units as the ones in this season's robot code, which means
-    they ask for amps rather than torque, so the controller converts its own output. The
-    defaults (300, 75, 12) are the values actually running on the bot.
-
-    There is no I term. The gravity feedforward Kg is what closes the steady state error
-    instead, which is why it is part of the controller rather than a trim added later.
+    Build a PIDF controller that drives the arm to x_ref.
     '''
     def controller(x):
         angle_rad, angular_rate_radps = x

@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# build_site.py copies these in; the originals live at the repo root
+site/py/
+site/final.glb

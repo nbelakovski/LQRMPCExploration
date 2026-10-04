@@ -19,7 +19,7 @@ from constants import KRAKEN_X60_MAX_TORQUE_FOC_Nm
 from dynamics import nonlinear_dynamics
 
 
-def make_controller(x_ref, Q11=100, Q22=1, R=0.001, horizon_s=0.5, horizon_points=5):
+def make_controller(x_ref, Q11=100, Q22=1, R=0.001, horizon_s=0.2, horizon_points=3):
     '''
     Build an MPC controller that drives the arm to x_ref.
 
@@ -29,7 +29,9 @@ def make_controller(x_ref, Q11=100, Q22=1, R=0.001, horizon_s=0.5, horizon_point
 
     Each call solves a fresh nonlinear trajectory optimization, which is far and away the
     most expensive thing in this project. horizon_s and horizon_points are the knobs that
-    trade solve time against lookahead.
+    trade solve time against lookahead, and the cost is dominated by horizon_points rather
+    than by how far ahead those points reach: on this model each extra point roughly
+    doubles the time to simulate a run.
     '''
     # Refactor the nonlinear dynamics in a format consumable by python-control
     f_nonlinear_control = lambda t, x, u, params: nonlinear_dynamics(t, x, u[0])
@@ -42,7 +44,9 @@ def make_controller(x_ref, Q11=100, Q22=1, R=0.001, horizon_s=0.5, horizon_point
                               ub=KRAKEN_X60_MAX_TORQUE_FOC_Nm)
 
     Q = np.array([[Q11, 0], [0, Q22]])
-    horizon = np.linspace(0, horizon_s, horizon_points)
+    # int() because the page sends this straight from a slider, and linspace will not
+    # accept a float count.
+    horizon = np.linspace(0, horizon_s, int(horizon_points))
 
     # Running and terminal cost functions
     cost = lambda x, u: (x - x_ref)@Q@(x - x_ref) + R * u[0]**2

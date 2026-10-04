@@ -64,7 +64,7 @@ model_error = 1.1  # 10%
 
 def nonlinear_dynamics(t, x, u_Nm=0, friction=True):
     xdot = np.zeros(x.shape)
-    efficiency_ = efficiency if friction else 0
+    efficiency_ = efficiency if friction else 1
     angle_rad, angular_rate_radps = x[0], x[1]
     dynamic_friction = bearing_friction_torque_Nm * np.tanh(1e3*angular_rate_radps) if friction else 0
     viscous_friction = viscous_friction_Nms * angular_rate_radps if friction else 0

@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Controlling a robot arm</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Ctext y=%2713%27 font-size=%2713%27%3E%F0%9F%A6%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"> </script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>Exploring PID/F, LQR, and MPC</h1>
+  <p class="lede">
+    This page explores two control strategies that are more advanced than PID/PIDF, LQR, and MPC.
+    LQR (Linear Quadratic Regulator) and MPC (Model Predictive Control) both rely on a model of the
+    system and, in effect, use that model to "be smarter" about controlling the system than PID,
+    which simply reacts to disturbances. PIDF (F for feedforward) sits in between PID and LQR/MPC since
+    it models disturbances like gravity in the feedforward term(s).
+  </p>
+  <p class="lede">
+    In this page I explore using LQR and MPC to control the invtake pivot for 516's 2026 FRC robot and
+    compare them to the PIDF strategy that was actually employed. 
+  </p>
+  <p class="lede">
+    To briefly summarize, LQR/MPC both present challenges and opportunities. A big attraction of these
+    methods is more intuitive tuning: you tune Q and R which directly penalize error and control effort
+    respectively, as opposed to P and D which can interact in complicated ways. Another big attraction
+    is that since they require a model, initial tuning can be done before the robot is finished, ideally
+    reducing the amount of time software needs with the robot once it's constructed. Additionally an
+    advantage of MPC is that it can take into account torque limits on the motors and incorporate that
+    into its control strategy.
+  </p>
+  <p class="lede">
+    The biggest challenge with LQR is that modeling is complicated, and it requires a good model to be
+    effective. MPC faces that challenge and additionally faces the challenge that there's no MPC library
+    in Java. In some ways this challenge is an opportunity: a good model can also be used to simulate a
+    PID controller, which would give the benefits of tuning before getting the robot while sticking with
+    a familiar control strategy.
+  </p>
+  <p class="lede">
+    Every number and every curve below is produced by Python running in your browser. The
+    code shown in each chapter is the code that produced the plot next to it.
+  </p>
+  <p id="status">starting&hellip;</p>
+</header>
+
+<main>
+
+<!-- ============================================================= 1. model -->
+<section>
+  <h2>1 &middot; The model</h2>
+  <p>
+    The arm is a rigid body on a shaft, so everything follows from
+    <a href="https://en.wikipedia.org/wiki/Euler%27s_equations_(rigid_body_dynamics)">\(T = I \dot{\omega}\)</a>.
+    Three torques act on it: the motor, gravity, and friction.
+    Below is the full model, see the appendix for more details and values.
+  </p>
+  <p style="font-size: 20px; padding-left: 15px">
+    \(\dot{\omega} = (I_{arm} + I_{motor} \cdot \eta \cdot GR^2)^{-1} \cdot 
+        (u \cdot \eta \cdot GR - r_{arm} \cdot m_{arm} \cdot g \cdot \cos(\theta)
+        - \mu - b \cdot \omega)
+    \)
+  </p>
+  <p> Where </p>
+  <p style="font-size: 18px; padding-left: 25px">
+    \(
+      \omega = \text{Angular rate of arm} \\
+      \theta = \text{Angle of arm from horizontal} \\
+      \eta = \text{efficiency} \\
+      GR = \text{Gear Ratio} \\
+      u = \text{Motor torque} \\
+      g = \text{Gravity} \\
+      \mu = \text{Dynamic friction} \\
+      b = \text{Viscous friction coefficient}
+    \)
+  </p>
+  <p>Note that θ is the angle of the arm from the horizontal:</p>
+  <svg viewBox="0 0 200 110" width="240" role="img" aria-label="Arm at angle theta above the horizontal">
+    <!-- horizontal reference (dashed) -->
+    <line x1="20" y1="100" x2="170" y2="100" stroke="currentColor" stroke-dasharray="4 3" stroke-width="3"/>
+    <!-- the arm, at 40° -->
+    <line x1="20" y1="100" x2="135" y2="3.6" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    <!-- angle arc -->
+    <path d="M 60 100 A 40 40 0 0 0 50.6 74.3" fill="none" stroke="currentColor"/>
+    <!-- label -->
+    <text x="69" y="88" font-size="16" font-style="italic" fill="currentColor">θ</text>
+  </svg>
+  <pre class="code" data-src="dynamics.py:nonlinear_dynamics"></pre>
+</section>
+
+<!-- ========================================================== 2. no control -->
+<section>
+  <h2>2 &middot; With nothing driving it</h2>
+  <p>
+    Before adding a controller, look at what the arm does on its own. Released from
+    rest at 22&deg; it falls and swings like a pendulum. Ignore the clipping with its own
+    drivetrain, the model is not that sophisticated.
+  </p>
+  <div class="lab" id="lab-none">
+    <div class="controls"></div>
+    <div class="panes">
+      <div class="charts"></div>
+      <div class="stage"></div>
+    </div>
+    <p class="readout"></p>
+    <p class="info"></p>
+    <p class="run-hint"></p>
+  </div>
+</section>
+
+<!-- ================================================================= 3. PID -->
+<section>
+  <h2>3 &middot; PID</h2>
+  <p>
+    Below is essentially exactly what runs on the robot, with the actual gains we
+    used.
+  </p>
+  <pre class="code" data-src="simpid.py:make_controller"></pre>
+  <div class="lab" id="lab-pid">
+    <div class="controls"></div>
+    <div class="panes">
+      <div class="charts"></div>
+      <div class="stage"></div>
+    </div>
+    <p class="readout"></p>
+    <p class="info"></p>
+    <p class="run-hint"></p>
+  </div>
+</section>
+
+<!-- ================================================================= 4. LQR -->
+<section>
+  <h2>4 &middot; LQR</h2>
+  <p>
+    LQR takes the model we made (more accurately a linearized version of it), along
+    with Q and R matrices which specify how much we care about state error and control
+    effort respectively (more on those in a minute) and solves the Algebraic Ricatti
+    Equation (ARE) to produce an optimal set of gains. Since it's linear you could, in
+    principle, extract P and D from the matrix produced by LQR, at least in this case.
+  </p>
+  <p>
+    The Q matrix, put simply, tells the optimization how much we want to penalize errors
+    in the angle (that's the Q11 term) and the angular rate (Q22). For this application
+    we don't really care that much about angular rate, but we do want the arm to achieve
+    its desired target angle with little steady state error, so that's why the Q11 term
+    is so high.
+  </p>
+  <p>
+    The R matrix (in this case a scalar since we have 1 control input) tells the
+    optimization how much we want to penalize control effort. Often in robotics there's
+    a desire to achieve an objective with less effort to save on energy expenditure,
+    and so you would set R relatively high to achieve this. For this particular case, since
+    we don't move the arm that often, and our drivetrain is a much greater source of
+    power draw, I've set R to be fairly low.
+  </p>
+  <p>
+    Notice that with R this low, the controller asks for more control effort than the
+    Kraken is able to provide. Try increasing R to get the control effort to a level
+    that's realistic. This is an inherent weakness of LQR, it can't take controller
+    constraints into account, but MPC can.
+  </p>
+
+  <pre class="code" data-src="lqr.py:make_controller"></pre>
+  <div class="lab" id="lab-lqr">
+    <div class="controls"></div>
+    <div class="panes">
+      <div class="charts"></div>
+      <div class="stage"></div>
+    </div>
+    <p class="readout"></p>
+    <p class="info"></p>
+    <p class="run-hint"></p>
+  </div>
+</section>
+
+<!-- ================================================================= 5. MPC -->
+<section>
+  <h2>5 &middot; MPC</h2>
+    MPC is a broader topic than the name might suggest. There's lots of different
+    approaches to the control problem that all fall under the umbrella name of MPC.
+
+    Below is an implementation using the python-control library which uses nonlinear
+    solvers. It's accurate, but expensive. In practice one would linearize the
+    problem and use a Quadratic Programming (QP) solver which is much faster. There's
+    no Java library for MPC, but there are Java libraries for QP solvers that could
+    be brought in to run on the System Core.
+
+    MPC generally has the same tuning knobs as LQR, but also one can tune the horizon
+    and number of points. Basically MPC will simulate the model up to the horizon and
+    it will set constraints at N points along the way (where you specify N). It then
+    takes the solution from the first point and applies it.
+  <p>
+    
+  </p>
+  <pre class="code" data-src="mpc_control.py:make_controller"></pre>
+  <div class="lab" id="lab-mpc">
+    <div class="controls"></div>
+    <div class="panes">
+      <div class="charts"></div>
+      <div class="stage"></div>
+    </div>
+    <p class="readout"></p>
+    <p class="info"></p>
+    <p class="run-hint"></p>
+  </div>
+</section>
+
+<!-- ============================================================ 6. appendix -->
+<section>
+  <h2>Appendix &middot; Model constants</h2>
+  <pre class="code" data-src="constants.py"></pre>
+</section>
+
+</main>
+
+<footer>
+  <p>
+    Simulation code runs under <a href="https://pyodide.org">Pyodide</a>; plots are
+    <a href="https://github.com/leeoniya/uPlot">uPlot</a>; the CAD view is
+    <a href="https://threejs.org">three.js</a>.
+  </p>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
