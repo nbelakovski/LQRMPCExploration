@@ -1,0 +1,51 @@
+# Publish the interactive page to GitHub Pages.
+#
+# The site is built rather than committed: build_site.py copies the controller sources
+# and final.glb into site/, and those copies are gitignored so they cannot drift from the
+# originals at the repo root. That means the committed tree on its own is NOT a working
+# site, and Pages has to run the build. Hence a workflow rather than the simpler
+# "serve a branch folder" setting.
+#
+# build_site.py only uses pathlib and shutil, so there is nothing to install.
+
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it midway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble site/
+        run: python3 build_site.py
+
+      - name: Fail if the build produced nothing to serve
+        run: |
+          test -f site/index.html
+          test -f site/final.glb
+          test "$(ls site/py/*.py | wc -l)" -eq 7
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
