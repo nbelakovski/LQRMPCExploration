@@ -1,85 +1,73 @@
 '''
-This is an exploration of how to do LQR based controller design for the pivoting arm on
-FRC team 516's 2026 competition bot.
+This is an exploration of how to do LQR based controller design for the pivoting arm on FRC team
+516's competition bot.
+
+Note that with LQR we can't put constraints on u, so nothing stops the designed gain from
+asking for more torque than the Kraken can deliver. Since the design of MPC involves
+solving a constrained optimization problem, that approach ought to be more applicable in
+this case.
+
+Run a simulation with:  uv run main.py lqr
 '''
 
 import numpy as np
-from scipy.integrate import solve_ivp
 from scipy.linalg import solve_continuous_are
-import matplotlib.pyplot as plt
 from constants import (
     m_arm_kg,
     r_arm_m,
     efficiency,
     g_mps2,
     GEAR_RATIO,
-    KRAKEN_X60_MAX_TORQUE_FOC_Nm
 )
-from dynamics import nonlinear_dynamics, A, B
+from dynamics import A, B
 
 
-cp = np.pi/2  # control point
+def make_controller(x_ref, Q11=100, Q22=1, R=0.1, control_point_rad=np.pi/2):
+    '''
+    Build an LQR controller, plus a gravity feedforward term, that drives the arm to x_ref.
 
-# Check the controllability matrix and assert that the linearized system is controllable.
-# For an n-state system that matrix is [B, AB, A^2 B, ... A^(n-1) B], so with two states
-# it is just [B, AB].
-controllability = np.hstack([B, A(cp) @ B])
-assert np.linalg.matrix_rank(controllability) == 2
+    Q11 prices angle error, Q22 prices rate error, and R prices control effort. The
+    returned controller carries the designed gain and the closed-loop eigenvalues as
+    attributes so that callers may examine them.
+    '''
+    A_cp = A(control_point_rad)
 
-Q = np.array([[100, 0], [0, 1]])
-# R is 1x1 because the arm has a single input, the motor torque. Keeping it a matrix
-# rather than a scalar lets the gain below be written the way the textbooks write it.
-R = np.array([[0.1]])
+    # Check the controllability matrix and assert that the linearized system is controllable.
+    # For an n-state system that matrix is [B, AB, A^2 B, ... A^(n-1) B], so with two states
+    # it is just [B, AB].
+    controllability = np.hstack([B, A_cp @ B])
+    assert np.linalg.matrix_rank(controllability) == 2
 
-# LQR finds the gain K that minimizes the infinite-horizon quadratic cost
-#
-#   J = integral from 0 to inf of (x' Q x + u' R u) dt
-#
-# Q prices how much we dislike being away from the setpoint and R prices how much we
-# dislike spending control effort, so their ratio is the only thing that really matters.
-# The minimizer comes out of the algebraic Riccati equation (ARE)
-#
-#   A' S + S A - S B R^-1 B' S + Q = 0
-#
-# which scipy solves for S. The optimal gain is then K = R^-1 B' S. Substituting
-# u = -Kx into xdot = Ax + Bu leaves the closed loop running as xdot = (A - BK)x, so the
-# eigenvalues of A - BK say how quickly the controller hauls the state back to the
-# setpoint. Both are negative here, which is what makes the closed loop stable.
-S = solve_continuous_are(A(cp), B, Q, R)
-K = np.linalg.solve(R, B.T @ S)
-E = np.linalg.eigvals(A(cp) - B @ K)
+    Q = np.array([[Q11, 0], [0, Q22]])
+    # R is 1x1 because the arm has a single input, the motor torque. Keeping it a matrix
+    # rather than a scalar lets the gain below be written the way the textbooks write it.
+    R = np.array([[R]])
 
-print("K:", K)
-print("Eigenvalues:", E)
-print("mgr (Nm):", m_arm_kg*g_mps2*r_arm_m)
+    # LQR finds the gain K that minimizes the infinite-horizon quadratic cost
+    #
+    #   J = integral from 0 to inf of (x' Q x + u' R u) dt
+    #
+    # Q prices how much we dislike being away from the setpoint and R prices how much we
+    # dislike spending control effort, so their ratio is the only thing that really matters.
+    # The minimizer comes out of the algebraic Riccati equation (ARE)
+    #
+    #   A' S + S A - S B R^-1 B' S + Q = 0
+    #
+    # which scipy solves for S. The optimal gain is then K = R^-1 B' S. Substituting
+    # u = -Kx into xdot = Ax + Bu leaves the closed loop running as xdot = (A - BK)x, so the
+    # eigenvalues of A - BK say how quickly the controller hauls the state back to the
+    # setpoint. Both are negative here, which is what makes the closed loop stable.
+    S = solve_continuous_are(A_cp, B, Q, R)
+    K = np.linalg.solve(R, B.T @ S)
+    E = np.linalg.eigvals(A_cp - B @ K)
 
-x_ref = [np.pi/4, 0]
+    # The controller design incorporates a gravity feedforward component and then the
+    # K matrix gains from LQR.
+    def controller(x):
+        feedforward_Nm = m_arm_kg*g_mps2*r_arm_m*np.cos(x[0]) / (GEAR_RATIO*efficiency)
+        return (feedforward_Nm - K @ (x - x_ref))[0]
 
-# The controller design incorporates a gravity feedforward component and then the
-# K matrix gains from LQR.
-u = lambda x: m_arm_kg*g_mps2*r_arm_m*np.cos(x[0])/(GEAR_RATIO*efficiency) - K@(x - x_ref)
-
-nonlinear_dynamics_lqrf_control = lambda t, x: nonlinear_dynamics(t, x, u(x)[0])
-
-sol = solve_ivp(nonlinear_dynamics_lqrf_control, [0, tf:=1], [0, 0], t_eval=np.linspace(0, tf, 1000))
-
-fig, axs = plt.subplots(2, 1, layout="constrained")
-fig.suptitle('Single robotic arm controlled by LQR')
-axs[0].plot(sol.t, np.degrees(sol.y[0, :]))
-axs[0].set_xlabel('Time (s)')
-axs[0].set_ylabel('Angle (deg)')
-axs[0].hlines(np.degrees(x_ref[0]), 0, sol.t[-1], color='k', linestyle='--', label='Target angle')
-axs[0].grid()
-axs[0].legend()
-axs[1].plot(sol.t, [u(sol.y[:, i])[0] for i in range(len(sol.t))])
-axs[1].set_xlabel('Time (s)')
-axs[1].set_ylabel('Control effort (Nm)')
-axs[1].hlines(KRAKEN_X60_MAX_TORQUE_FOC_Nm, 0, sol.t[-1], color='k', linestyle='--', label='Kraken X60 max torque FOC')
-axs[1].hlines(-KRAKEN_X60_MAX_TORQUE_FOC_Nm, 0, sol.t[-1], color='k', linestyle='--')
-axs[1].grid()
-axs[1].legend()
-plt.show()
-
-# Note that with LQR, We can't put constraints on u.
-# Since the design of MPC involves solving a constrained optimization problem,
-# that approach ought to be more applicable in this case.
+    controller.K = K
+    controller.eigenvalues = E
+    controller.holding_torque_Nm = m_arm_kg*g_mps2*r_arm_m
+    return controller
