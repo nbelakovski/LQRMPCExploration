@@ -22,7 +22,7 @@ from constants import (
 from dynamics import A, B
 
 
-def make_controller(x_ref, Q11=100, Q22=1, R=0.1, control_point_rad=np.pi/2):
+def make_controller(x_ref, Q11=100, Q22=1, R=0.5, control_point_rad=np.pi/2):
     '''
     Build an LQR controller, plus a gravity feedforward term, that drives the arm to x_ref.
 

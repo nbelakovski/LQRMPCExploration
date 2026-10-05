@@ -51,9 +51,10 @@ estimate that from the dimension and weight of the motor.
 
 # Estimating rotor inertia from physical parameters
 # Source: https://docs.wcproducts.com/welcome/electronics/kraken-x60/kraken-x60-motor/overview-and-features/physical-specifications
-radius_motor_m = 0.06 - .005  # Assume motor wall is about 5mm thick
-m_motor_kg = 0.54 * 0.9  # Assume the rotor is 90% of the total mass
-I_motor_kgm2 = 1/2 * m_motor_kg * radius_motor_m**2  # Assume solid cylinder about z axis
+# and https://www.chiefdelphi.com/t/announcing-kraken-x60-powered-by-talon-fx/442236/860
+radius_rotor_m = 0.03 - .005 
+m_motor_kg = 0.54 * 0.5  # Assume the rotor is 50% of the total mass
+I_motor_kgm2 = 1/2 * m_motor_kg * radius_rotor_m**2  # Assume solid cylinder about z axis
 # Lastly, the above needs to be reflected to the shaft with the arm so that we can write
 # things in terms of the angle and rotational speed of the arm shaft. Reflected in this
 # case means multiplying by the final gear ratio squared.

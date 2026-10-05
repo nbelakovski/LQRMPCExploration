@@ -159,7 +159,7 @@ def main():
                              '(default: %(default)s)')
     parser.add_argument('--x0', type=float, default=INITIAL_ANGLE_DEG, metavar='DEG',
                         help='angle the arm starts from, at rest (default: %(default)s)')
-    parser.add_argument('--tf', type=float, default=1.0, metavar='S',
+    parser.add_argument('--tf', type=float, default=1.5, metavar='S',
                         help='simulation duration in seconds (default: %(default)s)')
     parser.add_argument('--no-friction', action='store_true',
                         help='switch off bearing and viscous friction and gear losses, '

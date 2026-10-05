@@ -144,9 +144,9 @@ const CONTROLS = {
   Kp: { label: "Kp", min: 0, max: 600, step: 10, value: 300 },
   Kd: { label: "Kd", min: 0, max: 200, step: 5, value: 75 },
   Kg: { label: "Kg", min: 0, max: 30, step: 1, value: 12 },
-  Q11: { label: "Q11 (angle error)", min: 1, max: 1000, step: 1, value: 100 },
+  Q11: { label: "Q11 (angle error)", min: 1, max: 250, step: 1, value: 100 },
   Q22: { label: "Q22 (rate error)", min: 0, max: 50, step: 1, value: 1 },
-  R_lqr: { key: "R", label: "R (effort)", min: -3, max: 1, step: 0.1, value: -1, log: true },
+  R_lqr: { key: "R", label: "R (effort)", min: -3, max: 1, step: 0.1, value: -0.3, log: true },
   R_mpc: { key: "R", label: "R (effort)", min: -4, max: 0, step: 0.1, value: -3, log: true },
   // Solve time is driven by the number of points far more than by how far ahead they
   // reach, so the point count is the one to treat carefully. Keep these in step with the

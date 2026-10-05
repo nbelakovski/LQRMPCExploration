@@ -13,7 +13,7 @@ from constants import KRAKEN_X60_MAX_TORQUE_FOC_Nm
 
 
 def run(controller, x_ref_deg=main.TARGET_ANGLE_DEG, x0_deg=main.INITIAL_ANGLE_DEG,
-        tf_s=1.0, dt_control_ms=None, friction=True, **gains):
+        tf_s=1.5, dt_control_ms=None, friction=True, **gains):
     '''Simulate one run and return plain lists, ready for the page to draw.'''
     spec = main.CONTROLLERS[controller]
     dt_control_s = dt_control_ms / 1000.0 if dt_control_ms else spec['dt_control_s']
