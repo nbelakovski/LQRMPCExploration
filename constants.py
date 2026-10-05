@@ -37,3 +37,5 @@ I_arm_kgm2 = m_arm_kg * r_arm_m**2
 GEAR_RATIO = 60
 
 KRAKEN_X60_MAX_TORQUE_FOC_Nm = 9.37
+KRAKEN_X60_Kt_FOC_Nmpa = 9.37/483
+KRAKEN_X60_Kt_Nmpa = 7.09/366
